@@ -23,13 +23,36 @@ export function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setGeneralError('');
     setFieldErrors({});
+
+    // Client-side validation
+    const errors: FieldErrors = {};
+    const emailTrimmed = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailTrimmed) {
+      errors.email = 'Email address is required.';
+    } else if (!emailRegex.test(emailTrimmed)) {
+      errors.email = 'Please enter a valid email address.';
+    }
+
+    if (!password) {
+      errors.password = 'Password is required.';
+    } else if (password.length < 8) {
+      errors.password = 'Password must be at least 8 characters long.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
     
+    setLoading(true);
+
     try {
       await api.post('/auth/register', {
-        email,
+        email: emailTrimmed,
         password
       });
       
@@ -43,10 +66,19 @@ export function Register() {
       
       if (err.response) {
         const status = err.response.status;
-        const detail = err.response.data?.detail || err.response.data?.error;
-        const detailsArray = err.response.data?.details || (Array.isArray(err.response.data?.detail) ? err.response.data?.detail : null);
+        const rawDetail = err.response.data?.detail || err.response.data?.error;
+        const safeDetail = typeof rawDetail === 'string' ? rawDetail : '';
+        const detailsArray = Array.isArray(err.response.data?.details)
+          ? err.response.data.details
+          : Array.isArray(err.response.data?.detail)
+          ? err.response.data.detail
+          : null;
         
-        if (status === 422) {
+        if (status === 404) {
+          setGeneralError('Registration service endpoint was not found. Please verify the API configuration.');
+        } else if (status === 409) {
+          setGeneralError(safeDetail || 'An account with this email already exists. Please sign in or use a different email.');
+        } else if (status === 422) {
           // Unprocessable Entity - Validation Error
           const newFieldErrors: FieldErrors = {};
           if (Array.isArray(detailsArray)) {
@@ -60,19 +92,21 @@ export function Register() {
           if (Object.keys(newFieldErrors).length > 0) {
             setFieldErrors(newFieldErrors);
           } else {
-            setGeneralError('Please check your inputs and try again.');
+            setGeneralError(safeDetail || 'Please check your inputs and try again.');
           }
-        } else if (status === 409) {
-          setGeneralError('An account with this email already exists.');
-        } else if (status === 400 || status === 401) {
-          setGeneralError(typeof detail === 'string' ? detail : 'Invalid registration details.');
+        } else if (status === 401) {
+          setGeneralError(safeDetail || 'Authentication failed. Please verify your details.');
+        } else if (status === 403) {
+          setGeneralError(safeDetail || 'You do not have permission to perform this action.');
         } else if (status >= 500) {
-          setGeneralError('Server error. Please try again later.');
+          setGeneralError('Server error encountered. Please try again later.');
         } else {
-          setGeneralError(typeof detail === 'string' ? detail : `Registration failed. Please try again. (HTTP ${status})`);
+          setGeneralError(safeDetail || `Registration failed. Please try again. (HTTP ${status})`);
         }
+      } else if (err.request) {
+        setGeneralError('Unable to connect to the backend server. Please verify the backend is running.');
       } else {
-        setGeneralError('Network error. Please check your connection.');
+        setGeneralError('An unexpected error occurred. Please try again.');
       }
     } finally {
       setLoading(false);

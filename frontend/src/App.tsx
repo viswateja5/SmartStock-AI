@@ -20,6 +20,7 @@ const Settings = React.lazy(() => import("./pages/Settings").then(m => ({ defaul
 const MyDatasets = React.lazy(() => import("./pages/MyDatasets").then(m => ({ default: m.MyDatasets })))
 const DatasetEDA = React.lazy(() => import("./pages/DatasetEDA").then(m => ({ default: m.DatasetEDA })))
 const DatasetSchema = React.lazy(() => import("./pages/DatasetSchema").then(m => ({ default: m.DatasetSchema })))
+const DataQuality = React.lazy(() => import("./pages/DataQuality").then(m => ({ default: m.DataQuality })))
 const AdminDashboard = React.lazy(() => import("./pages/admin/AdminDashboard").then(m => ({ default: m.AdminDashboard })))
 
 // Full page loader
@@ -72,6 +73,7 @@ function App() {
                   <Route path="datasets" element={<MyDatasets />} />
                   <Route path="datasets/:id/eda" element={<DatasetEDA />} />
                   <Route path="datasets/:id/schema" element={<DatasetSchema />} />
+                  <Route path="data-quality" element={<DataQuality />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
               </Route>

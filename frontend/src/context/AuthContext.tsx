@@ -4,8 +4,8 @@ import api from '../lib/axios';
 interface User {
   id: string;
   email: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
   role: string;
   is_active: boolean;
 }
@@ -84,14 +84,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     resetTimeout();
 
-    // Axios interceptor for 401s
+    // Axios interceptor for 401s on protected routes (avoid triggering logout on login attempt failures)
     const interceptor = api.interceptors.response.use(
       (response) => response,
       async (error) => {
         if (error.response?.status === 401) {
-          // Token expired or invalid
-          console.warn('[Auth] 401 Unauthorized detected. Logging out.');
-          logout();
+          const requestUrl = error.config?.url || '';
+          const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+          if (!isAuthEndpoint) {
+            console.warn('[Auth] 401 Unauthorized detected on protected route. Logging out.');
+            logout();
+          }
         }
         return Promise.reject(error);
       }

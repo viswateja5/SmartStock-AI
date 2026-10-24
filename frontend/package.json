@@ -15,7 +15,7 @@
     "@react-three/postprocessing": "^3.0.4",
     "@tailwindcss/postcss": "^4.3.3",
     "@tanstack/react-virtual": "^3.14.9",
-    "axios": "^1.18.1",
+    "axios": "^1.20.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "framer-motion": "^12.42.2",
@@ -32,7 +32,7 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.18.1",
     "recharts": "^3.10.1",
-    "tailwind-merge": "^3.6.0",
+    "tailwind-merge": "^3.7.0",
     "three": "^0.185.1",
     "xlsx": "^0.18.5"
   },

@@ -28,20 +28,49 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    const emailTrimmed = email.trim();
+    if (!emailTrimmed || !password) {
+      setError('Please enter both your email address and password.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('username', email);
-      formData.append('password', password);
+      const params = new URLSearchParams();
+      params.append('username', emailTrimmed);
+      params.append('password', password);
       
-      const { data } = await api.post('/auth/login', formData, {
+      const { data } = await api.post('/auth/login', params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
       await login(data.access_token, data.refresh_token);
       // navigation is handled by useEffect when user state updates
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to authenticate');
+      if (err.response) {
+        const status = err.response.status;
+        const detail = err.response.data?.detail || err.response.data?.error;
+        const safeDetail = typeof detail === 'string' ? detail : '';
+
+        if (status === 401) {
+          setError(safeDetail || 'Incorrect email or password.');
+        } else if (status === 404) {
+          setError('Login endpoint not found. Please verify the API configuration.');
+        } else if (status === 422) {
+          setError(safeDetail || 'Invalid email or password format.');
+        } else if (status === 403) {
+          setError(safeDetail || 'Account access forbidden.');
+        } else if (status >= 500) {
+          setError('Server error encountered. Please try again later.');
+        } else {
+          setError(safeDetail || `Authentication failed (HTTP ${status}).`);
+        }
+      } else if (err.request) {
+        setError('Unable to connect to the backend server. Please verify the backend is running.');
+      } else {
+        setError('An unexpected error occurred during login. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

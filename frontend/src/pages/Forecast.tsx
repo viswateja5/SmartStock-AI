@@ -233,16 +233,23 @@ function StepSchema({ datasetId, onNext }: { datasetId: number, onNext: (schema:
         <div className="divide-y divide-border max-h-[400px] overflow-y-auto">
           {schema.map((col) => (
             <div key={col.name} className="grid grid-cols-12 gap-4 p-4 items-center">
-              <div className="col-span-4 font-medium truncate">{col.name}</div>
-              <div className="col-span-2 text-xs">{Math.round(col.confidence * 100)}%</div>
+              <div className="col-span-4 font-medium truncate flex items-center gap-1.5">
+                <span className="truncate">{col.name}</span>
+                {col.role === 'ignore' && (
+                  <span className="text-[10px] bg-rose-500/10 text-rose-500 border border-rose-500/20 px-1.5 py-0.5 rounded font-normal shrink-0">
+                    Leakage Risk
+                  </span>
+                )}
+              </div>
+              <div className="col-span-2 text-xs font-mono">{Math.round(col.confidence * 100)}%</div>
               <div className="col-span-6">
                 <select value={col.role} onChange={(e) => handleRole(col.name, e.target.value)} className="w-full bg-background border rounded-lg px-4 py-2 text-sm">
-                  <option value="target">Target</option>
+                  <option value="target">Target (Forecast Variable)</option>
                   <option value="date">Date</option>
                   <option value="numerical">Numerical</option>
                   <option value="categorical">Categorical</option>
                   <option value="identifier">Identifier</option>
-                  <option value="ignore">Ignore</option>
+                  <option value="ignore">Exclude (Leakage Risk)</option>
                 </select>
               </div>
             </div>
@@ -275,19 +282,156 @@ function StepFeatureEng({ onNext }: { onNext: () => void }) {
 
 // STEP 6: Horizon
 function StepHorizon({ onNext }: { onNext: (horizon: number) => void }) {
-  const [horizon, setHorizon] = useState(30);
+  const [mode, setMode] = useState<'months' | 'days'>('months');
+  const [months, setMonths] = useState<number>(3);
+  const [days, setDays] = useState<number>(90);
+
+  const monthPresets = [
+    { label: "1 Month", months: 1, days: 30, desc: "Short-term buffer" },
+    { label: "3 Months", months: 3, days: 90, desc: "Quarterly plan", popular: true },
+    { label: "6 Months", months: 6, days: 180, desc: "Half-year forecast" },
+    { label: "12 Months", months: 12, days: 365, desc: "Annual budgeting" },
+    { label: "24 Months", months: 24, days: 730, desc: "2-Year outlook" },
+    { label: "36 Months", months: 36, days: 1095, desc: "3-Year strategic" },
+  ];
+
+  const handleSelectPreset = (m: number, d: number) => {
+    setMonths(m);
+    setDays(d);
+  };
+
+  const handleMonthSlider = (val: number) => {
+    setMonths(val);
+    setDays(val * 30);
+  };
+
+  const handleDaySlider = (val: number) => {
+    setDays(val);
+    setMonths(Math.max(1, Math.round(val / 30)));
+  };
+
+  const effectiveHorizon = mode === 'months' ? (months === 12 ? 365 : months * 30) : days;
+
+  // Calculate target future date
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + effectiveHorizon);
+  const futureFormatted = futureDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8">
-      <h2 className="text-2xl font-bold">Step 6: Forecast Horizon</h2>
-      <p className="text-muted-foreground">How many days into the future would you like to predict?</p>
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex justify-between items-end">
-          <span className="text-5xl font-bold text-primary">{horizon}</span>
-          <span className="text-lg text-muted-foreground pb-1">Days</span>
-        </div>
-        <input type="range" min="1" max="365" value={horizon} onChange={(e) => setHorizon(Number(e.target.value))} className="w-full accent-primary" />
-        <button onClick={() => onNext(horizon)} className="w-full py-3 bg-primary text-primary-foreground font-medium rounded-xl mt-8">Continue</button>
+    <div className="flex flex-col items-center justify-center min-h-[440px] space-y-6 max-w-xl mx-auto">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-foreground">Step 6: Select Forecast Horizon</h2>
+        <p className="text-muted-foreground text-sm mt-1">
+          Specify the duration into the future you want the AI model to predict demand.
+        </p>
       </div>
+
+      {/* Mode Switcher */}
+      <div className="flex bg-muted/60 p-1 rounded-xl border border-border/50 text-xs font-medium">
+        <button
+          onClick={() => setMode('months')}
+          className={`px-5 py-1.5 rounded-lg transition-all ${
+            mode === 'months' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Select by Months (Recommended)
+        </button>
+        <button
+          onClick={() => setMode('days')}
+          className={`px-5 py-1.5 rounded-lg transition-all ${
+            mode === 'days' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Custom Days
+        </button>
+      </div>
+
+      {/* Main Horizon Display */}
+      <Card className="w-full p-6 bg-card/60 border border-border/50 shadow-md flex flex-col items-center space-y-6">
+        <div className="text-center">
+          <div className="flex items-baseline justify-center gap-2">
+            <span className="text-5xl font-black font-mono text-primary">
+              {mode === 'months' ? months : days}
+            </span>
+            <span className="text-xl font-bold text-foreground">
+              {mode === 'months' ? (months === 1 ? 'Month' : 'Months') : 'Days'}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Predicts through <strong className="text-foreground">{futureFormatted}</strong> (~{effectiveHorizon} days total)
+          </p>
+        </div>
+
+        {mode === 'months' ? (
+          <div className="w-full space-y-5">
+            {/* Quick Presets */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 w-full">
+              {monthPresets.map((preset) => {
+                const isSelected = months === preset.months;
+                return (
+                  <button
+                    key={preset.months}
+                    onClick={() => handleSelectPreset(preset.months, preset.days)}
+                    className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center relative ${
+                      isSelected 
+                        ? 'border-primary bg-primary/10 text-primary shadow-sm' 
+                        : 'border-border/50 bg-card/40 hover:bg-card text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {preset.popular && (
+                      <span className="absolute -top-2 px-1.5 py-0.2 bg-primary text-primary-foreground text-[9px] font-bold rounded-full">
+                        Popular
+                      </span>
+                    )}
+                    <span className="font-bold text-xs">{preset.label}</span>
+                    <span className="text-[10px] opacity-75">{preset.days}d</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Months Slider */}
+            <div className="space-y-2 pt-2">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1 Month</span>
+                <span>Custom: {months} Months</span>
+                <span>36 Months (3 Yrs)</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="36"
+                value={months}
+                onChange={(e) => handleMonthSlider(Number(e.target.value))}
+                className="w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="w-full space-y-3">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>7 Days</span>
+              <span>Selected: {days} Days</span>
+              <span>365 Days</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="365"
+              value={days}
+              onChange={(e) => handleDaySlider(Number(e.target.value))}
+              className="w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
+            />
+          </div>
+        )}
+
+        <button
+          onClick={() => onNext(effectiveHorizon)}
+          className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all shadow-md text-sm"
+        >
+          Confirm {mode === 'months' ? `${months} Month${months > 1 ? 's' : ''}` : `${days} Days`} & Continue
+        </button>
+      </Card>
     </div>
   );
 }

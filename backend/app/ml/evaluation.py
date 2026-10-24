@@ -7,42 +7,54 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # ==========================================
 
 def get_mae(y_true, y_pred):
-    return mean_absolute_error(y_true, y_pred)
+    return float(mean_absolute_error(y_true, y_pred))
 
 def get_rmse(y_true, y_pred):
-    return np.sqrt(mean_squared_error(y_true, y_pred))
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
 def get_mape(y_true, y_pred):
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
-    mask = y_true != 0
-    if not mask.any(): return 0.0
-    return np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
+    y_true, y_pred = np.array(y_true, dtype=float), np.array(y_pred, dtype=float)
+    mask = (y_true != 0) & ~np.isnan(y_true) & ~np.isnan(y_pred)
+    if not mask.any(): 
+        return 0.0
+    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100)
 
 def get_wape(y_true, y_pred):
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
-    sum_true = np.sum(np.abs(y_true))
-    if sum_true == 0: return 0.0
-    return (np.sum(np.abs(y_true - y_pred)) / sum_true) * 100
+    y_true, y_pred = np.array(y_true, dtype=float), np.array(y_pred, dtype=float)
+    valid = ~np.isnan(y_true) & ~np.isnan(y_pred)
+    sum_true = np.sum(np.abs(y_true[valid]))
+    if sum_true == 0: 
+        return 0.0
+    return float((np.sum(np.abs(y_true[valid] - y_pred[valid])) / sum_true) * 100)
 
 def get_smape(y_true, y_pred):
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    y_true, y_pred = np.array(y_true, dtype=float), np.array(y_pred, dtype=float)
     denominator = (np.abs(y_true) + np.abs(y_pred)) / 2.0
-    mask = denominator != 0
-    if not mask.any(): return 0.0
-    return np.mean(np.abs(y_true[mask] - y_pred[mask]) / denominator[mask]) * 100
+    mask = (denominator != 0) & ~np.isnan(y_true) & ~np.isnan(y_pred)
+    if not mask.any(): 
+        return 0.0
+    return float(np.mean(np.abs(y_true[mask] - y_pred[mask]) / denominator[mask]) * 100)
+
+def get_bias(y_true, y_pred):
+    y_true, y_pred = np.array(y_true, dtype=float), np.array(y_pred, dtype=float)
+    valid = ~np.isnan(y_true) & ~np.isnan(y_pred)
+    if not valid.any():
+        return 0.0
+    return float(np.mean(y_pred[valid] - y_true[valid]))
 
 def get_r2(y_true, y_pred):
     if len(y_true) < 2: return 0.0
-    return r2_score(y_true, y_pred)
+    return float(r2_score(y_true, y_pred))
 
 def evaluate_all(y_true, y_pred):
     return {
-        "MAE": get_mae(y_true, y_pred),
-        "RMSE": get_rmse(y_true, y_pred),
-        "MAPE": get_mape(y_true, y_pred),
-        "WAPE": get_wape(y_true, y_pred),
-        "SMAPE": get_smape(y_true, y_pred),
-        "R2": get_r2(y_true, y_pred)
+        "MAE": round(get_mae(y_true, y_pred), 4),
+        "RMSE": round(get_rmse(y_true, y_pred), 4),
+        "MAPE": round(get_mape(y_true, y_pred), 2),
+        "WAPE": round(get_wape(y_true, y_pred), 2),
+        "SMAPE": round(get_smape(y_true, y_pred), 2),
+        "Bias": round(get_bias(y_true, y_pred), 4),
+        "R2": round(get_r2(y_true, y_pred), 4)
     }
 
 # ==========================================

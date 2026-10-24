@@ -121,9 +121,7 @@ def _process_dataset_sync(file_path: str, ext: str) -> tuple:
     dtypes = df.dtypes.astype(str).to_dict()
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     
-    target_suggestions = []
     outliers_count = {}
-    
     for col in numeric_cols:
         Q1 = df[col].quantile(0.25)
         Q3 = df[col].quantile(0.75)
@@ -131,9 +129,6 @@ def _process_dataset_sync(file_path: str, ext: str) -> tuple:
         outliers = ((df[col] < (Q1 - 1.5 * IQR)) | (df[col] > (Q3 + 1.5 * IQR))).sum()
         outliers_count[col] = int(outliers)
         
-        if "id" not in col.lower() and df[col].nunique() > 10:
-            target_suggestions.append(col)
-            
     correlation_matrix = []
     if len(numeric_cols) > 1:
         corr_df = df[numeric_cols].corr().fillna(0)
@@ -144,6 +139,66 @@ def _process_dataset_sync(file_path: str, ext: str) -> tuple:
                     "y": col_col,
                     "value": round(float(corr_df.iloc[i, j]), 2)
                 })
+
+    # Leakage Keywords
+    LEAKAGE_KEYWORDS = [
+        "revenue", "profit", "closing_stock", "ending_stock", "stockout", 
+        "total_amount", "gross_sales", "net_sales", "margin", "total_sales"
+    ]
+    
+    # Identify Date Column (Only ONE primary date column)
+    date_candidate = None
+    for col in df.columns:
+        col_lower = col.lower().strip()
+        col_type = str(df[col].dtype)
+        # Check explicit datetime type or date-like naming
+        if "datetime" in col_type or col_lower in ["date", "datetime", "timestamp", "ds", "time"] or col_lower.endswith(("_date", "_time")):
+            date_candidate = col
+            break
+        # If object/string, try to parse
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            try:
+                sample = df[col].dropna().head(10)
+                if len(sample) > 0:
+                    parsed = pd.to_datetime(sample, errors='raise')
+                    if parsed.dt.year.min() > 1980: # reasonable calendar year
+                        date_candidate = col
+                        break
+            except Exception:
+                pass
+
+    # Identify Primary Target Candidate (Only ONE target column)
+    # Retail / inventory forecasting target priorities
+    TARGET_PRIORITIES = ["units_sold", "sales", "quantity", "demand", "volume", "orders", "target", "y"]
+    target_candidate = None
+    
+    # Priority 1: Exact matches in priority list
+    for t in TARGET_PRIORITIES:
+        for col in numeric_cols:
+            if col.lower().strip() == t:
+                target_candidate = col
+                break
+        if target_candidate:
+            break
+            
+    # Priority 2: Substring matches for units_sold / sales / demand
+    if not target_candidate:
+        for col in numeric_cols:
+            col_lower = col.lower().strip()
+            if any(k in col_lower for k in ["units_sold", "sales", "demand", "quantity", "volume"]) and not any(l in col_lower for l in LEAKAGE_KEYWORDS):
+                target_candidate = col
+                break
+                
+    # Priority 3: Fallback numeric column with > 10 unique values (excluding leakage/id/prices/costs)
+    if not target_candidate:
+        for col in numeric_cols:
+            col_lower = col.lower().strip()
+            if col != date_candidate and not any(l in col_lower for l in LEAKAGE_KEYWORDS) and not any(i in col_lower for i in ["price", "cost", "discount", "id"]):
+                if df[col].nunique() > 10:
+                    target_candidate = col
+                    break
+                    
+    target_suggestions = [target_candidate] if target_candidate else []
 
     eda_data = {
         "num_rows": num_rows,
@@ -162,48 +217,72 @@ def _process_dataset_sync(file_path: str, ext: str) -> tuple:
         
     schema_def = []
     for col in df.columns:
-        scores = {"date": 0.0, "target": 0.0, "categorical": 0.0, "numerical": 0.0, "identifier": 0.0}
         col_type = str(df[col].dtype)
         unique_count = df[col].nunique()
         is_numeric = pd.api.types.is_numeric_dtype(df[col])
-    
-        if "id" in col.lower() or "uuid" in col.lower():
-            scores["identifier"] += 0.5
-        if unique_count == num_rows:
-            scores["identifier"] += 0.4
+        col_lower = col.lower().strip()
         
-        if "date" in col.lower() or "time" in col.lower():
-            scores["date"] += 0.5
-        if "datetime" in col_type:
-            scores["date"] += 0.9
-        else:
-            try:
-                pd.to_datetime(df[col].dropna().head(10), format="mixed")
-                scores["date"] += 0.7
-            except:
-                pass
-    
-        if not is_numeric:
-            scores["categorical"] += 0.8
-        if unique_count < 20:
-            scores["categorical"] += 0.4
-        
-        if is_numeric and unique_count > 10:
-            scores["numerical"] += 0.8
-        
-        if col in target_suggestions:
-            scores["target"] += 0.9
-        
-        best_role = max(scores, key=scores.get)
-        confidence = min(scores[best_role], 0.99)
-        if confidence == 0:
-            best_role = "ignore"
-            confidence = 1.0
-        
+        # Check target
+        if col == target_candidate:
+            schema_def.append({
+                "name": col,
+                "role": "target",
+                "confidence": 0.98,
+                "type": col_type
+            })
+            continue
+            
+        # Check date
+        if col == date_candidate:
+            schema_def.append({
+                "name": col,
+                "role": "date",
+                "confidence": 0.99,
+                "type": col_type
+            })
+            continue
+            
+        # Check target leakage columns
+        if any(col_lower == k or f"_{k}" in col_lower or f"{k}_" in col_lower for k in LEAKAGE_KEYWORDS):
+            schema_def.append({
+                "name": col,
+                "role": "ignore",
+                "confidence": 0.99,
+                "type": col_type
+            })
+            continue
+            
+        # Check identifiers
+        is_identifier = (
+            col_lower.endswith(("_id", "_key", "_sku", "_code")) or
+            col_lower.startswith(("id_", "sku_")) or
+            col_lower in ["id", "uuid", "sku", "code", "key"] or
+            (unique_count == num_rows and not is_numeric)
+        )
+        if is_identifier:
+            schema_def.append({
+                "name": col,
+                "role": "identifier",
+                "confidence": 0.95,
+                "type": col_type
+            })
+            continue
+            
+        # Check categorical
+        if not is_numeric or unique_count < 15:
+            schema_def.append({
+                "name": col,
+                "role": "categorical",
+                "confidence": 0.90,
+                "type": col_type
+            })
+            continue
+            
+        # Numerical feature
         schema_def.append({
             "name": col,
-            "role": best_role,
-            "confidence": confidence,
+            "role": "numerical",
+            "confidence": 0.90,
             "type": col_type
         })
     

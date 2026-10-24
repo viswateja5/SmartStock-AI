@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Search, Bell, User, Settings, HelpCircle, LogOut } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -34,38 +33,33 @@ export function TopNav() {
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full" />
           </button>
 
-          <AnimatePresence>
-            {showNotifications && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute top-12 right-0 w-80 bg-card border border-border shadow-2xl rounded-xl overflow-hidden flex flex-col z-50"
-              >
-                <div className="px-4 py-3 border-b border-border/50 flex justify-between items-center">
-                  <p className="text-sm font-semibold text-foreground">Notifications</p>
-                  <span className="text-xs text-primary cursor-pointer hover:underline">Mark all as read</span>
+          {showNotifications && (
+            <div 
+              className="absolute top-12 right-0 w-80 bg-card border border-border shadow-2xl rounded-xl overflow-hidden flex flex-col z-50 animate-in fade-in duration-100"
+            >
+              <div className="px-4 py-3 border-b border-border/50 flex justify-between items-center">
+                <p className="text-sm font-semibold text-foreground">Notifications</p>
+                <span className="text-xs text-primary cursor-pointer hover:underline">Mark all as read</span>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                <div className="p-4 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
+                  <p className="text-sm font-medium text-foreground">Model Training Completed</p>
+                  <p className="text-xs text-muted-foreground mt-1">Prophet achieved the highest accuracy for the Retail Sales dataset.</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Just now</p>
                 </div>
-                <div className="max-h-80 overflow-y-auto">
-                  <div className="p-4 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
-                    <p className="text-sm font-medium text-foreground">Model Training Completed</p>
-                    <p className="text-xs text-muted-foreground mt-1">Prophet achieved the highest accuracy for the Retail Sales dataset.</p>
-                    <p className="text-[10px] text-muted-foreground mt-2">Just now</p>
-                  </div>
-                  <div className="p-4 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
-                    <p className="text-sm font-medium text-foreground">Export Finished</p>
-                    <p className="text-xs text-muted-foreground mt-1">Your Enterprise PDF Report is ready for download.</p>
-                    <p className="text-[10px] text-muted-foreground mt-2">2 hours ago</p>
-                  </div>
-                  <div className="p-4 hover:bg-muted/30 transition-colors cursor-pointer">
-                    <p className="text-sm font-medium text-foreground">Upload Complete</p>
-                    <p className="text-xs text-muted-foreground mt-1">Dataset 'Retail_Sales_Q3.csv' processed successfully.</p>
-                    <p className="text-[10px] text-muted-foreground mt-2">Yesterday</p>
-                  </div>
+                <div className="p-4 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
+                  <p className="text-sm font-medium text-foreground">Export Finished</p>
+                  <p className="text-xs text-muted-foreground mt-1">Your Enterprise PDF Report is ready for download.</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">2 hours ago</p>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <div className="p-4 hover:bg-muted/30 transition-colors cursor-pointer">
+                  <p className="text-sm font-medium text-foreground">Upload Complete</p>
+                  <p className="text-xs text-muted-foreground mt-1">Dataset 'Retail_Sales_Q3.csv' processed successfully.</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Yesterday</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="relative">
@@ -76,41 +70,36 @@ export function TopNav() {
             <User className="w-4 h-4 text-foreground" />
           </button>
           
-          <AnimatePresence>
-            {showUserMenu && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute top-12 right-0 w-48 bg-card border border-border shadow-2xl rounded-xl overflow-hidden flex flex-col py-1"
+          {showUserMenu && (
+            <div 
+              className="absolute top-12 right-0 w-48 bg-card border border-border shadow-2xl rounded-xl overflow-hidden flex flex-col py-1 z-50 animate-in fade-in duration-100"
+            >
+              <div className="px-4 py-2 border-b border-border/50">
+                <p className="text-sm font-medium text-foreground">{user?.first_name} {user?.last_name}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              </div>
+              <button onClick={() => { setShowUserMenu(false); navigate('/settings'); }} className="flex items-center gap-3 px-4 py-2 hover:bg-muted text-sm text-left transition-colors text-muted-foreground hover:text-foreground mt-1">
+                <User className="w-4 h-4" /> Profile
+              </button>
+              <button onClick={() => { setShowUserMenu(false); navigate('/settings'); }} className="flex items-center gap-3 px-4 py-2 hover:bg-muted text-sm text-left transition-colors text-muted-foreground hover:text-foreground">
+                <Settings className="w-4 h-4" /> Settings
+              </button>
+              <button onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-4 py-2 hover:bg-muted text-sm text-left transition-colors text-muted-foreground hover:text-foreground">
+                <HelpCircle className="w-4 h-4" /> Help
+              </button>
+              <div className="h-px bg-border/50 my-1"></div>
+              <button 
+                onClick={() => {
+                  setShowUserMenu(false);
+                  logout();
+                  import('react-hot-toast').then(toast => toast.default.success("You have been securely logged out."));
+                }} 
+                className="flex items-center gap-3 px-4 py-2 hover:bg-rose-500/10 text-sm text-left transition-colors text-rose-500"
               >
-                <div className="px-4 py-2 border-b border-border/50">
-                  <p className="text-sm font-medium text-foreground">{user?.first_name} {user?.last_name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                </div>
-                <button onClick={() => { setShowUserMenu(false); navigate('/settings'); }} className="flex items-center gap-3 px-4 py-2 hover:bg-muted text-sm text-left transition-colors text-muted-foreground hover:text-foreground mt-1">
-                  <User className="w-4 h-4" /> Profile
-                </button>
-                <button onClick={() => { setShowUserMenu(false); navigate('/settings'); }} className="flex items-center gap-3 px-4 py-2 hover:bg-muted text-sm text-left transition-colors text-muted-foreground hover:text-foreground">
-                  <Settings className="w-4 h-4" /> Settings
-                </button>
-                <button onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-4 py-2 hover:bg-muted text-sm text-left transition-colors text-muted-foreground hover:text-foreground">
-                  <HelpCircle className="w-4 h-4" /> Help
-                </button>
-                <div className="h-px bg-border/50 my-1"></div>
-                <button 
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    logout();
-                    import('react-hot-toast').then(toast => toast.default.success("You have been securely logged out."));
-                  }} 
-                  className="flex items-center gap-3 px-4 py-2 hover:bg-rose-500/10 text-sm text-left transition-colors text-rose-500"
-                >
-                  <LogOut className="w-4 h-4" /> Logout
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <LogOut className="w-4 h-4" /> Logout
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

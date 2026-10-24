@@ -11,6 +11,23 @@ from app.models.user import User
 from app.schemas.auth import TokenPayload
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+async def get_current_user_optional(
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme_optional)
+) -> User | None:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_data = TokenPayload(**payload)
+        if token_data.type != "access":
+            return None
+        result = await db.execute(select(User).where(User.id == token_data.sub))
+        return result.scalars().first()
+    except Exception:
+        return None
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db),

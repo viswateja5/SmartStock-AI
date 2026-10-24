@@ -1,142 +1,254 @@
-import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import GridLayout from "react-grid-layout";
-import "react-grid-layout/css/styles.css";
-import "react-resizable/css/styles.css";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 import { SalesCharts } from "../components/analytics/SalesCharts";
 import { Heatmap } from "../components/analytics/Heatmap";
 import { InsightsFeed } from "../components/analytics/InsightsFeed";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
-import { Activity, Users, Database, ShieldCheck, Zap } from "lucide-react";
+import { 
+  Database, Target, CalendarDays, ShoppingBag, 
+  ArrowRight, UploadCloud, Loader2, Sparkles 
+} from "lucide-react";
+import api from "../lib/axios";
 
-const DashboardHero3D = React.memo(function DashboardHero3D() {
-  return (
-    <div className="w-full h-[250px] relative rounded-3xl overflow-hidden mb-8 border border-border/50 shadow-2xl">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/10 backdrop-blur-md z-10" />
-      <div className="absolute inset-0 z-20 flex flex-col justify-center px-12 pointer-events-none">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground drop-shadow-lg mb-4">
-            Command Center
-          </h1>
-          <p className="text-muted-foreground text-lg max-w-xl">
-            Real-time analytics, AI insights, and system telemetry mapped into an interactive grid.
-          </p>
-        </motion.div>
-      </div>
-    </div>
-  );
-});
+interface ActiveDatasetSummary {
+  id: number;
+  name: string;
+  total_rows: number;
+  total_columns: number;
+  date_col: string;
+  target_col: string;
+  date_range: string[];
+  total_demand: number;
+  avg_daily_demand: number;
+  active_skus_count: number;
+  active_stores_count: number;
+  historical_series: Array<{ date: string; actual: number }>;
+  category_distribution: Array<{ category: string; value: number }>;
+  top_products: Array<{ name: string; volume: number }>;
+  recent_alerts: Array<{ title: string; message: string; severity?: string }>;
+}
+
+interface DashboardData {
+  has_datasets: boolean;
+  total_datasets: number;
+  datasets: Array<{ id: number; name: string; rows?: number; created_at?: string }>;
+  active_dataset: ActiveDatasetSummary | null;
+}
 
 export function Dashboard() {
-  const [layout, setLayout] = useState<any[]>([
-    { i: "kpi1", x: 0, y: 0, w: 3, h: 2 },
-    { i: "kpi2", x: 3, y: 0, w: 3, h: 2 },
-    { i: "kpi3", x: 6, y: 0, w: 3, h: 2 },
-    { i: "kpi4", x: 9, y: 0, w: 3, h: 2 },
-    { i: "sales", x: 0, y: 2, w: 8, h: 4 },
-    { i: "insights", x: 8, y: 2, w: 4, h: 4 },
-    { i: "heatmap", x: 0, y: 6, w: 12, h: 4 },
-  ]);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null);
 
-  const [isDragging, setIsDragging] = useState(false);
-  const gridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const url = selectedDatasetId ? `/dashboard?dataset_id=${selectedDatasetId}` : `/dashboard`;
+        const res = await api.get(url);
+        setData(res.data);
+      } catch (err) {
+        console.error("Failed to load dashboard data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboard();
+  }, [selectedDatasetId]);
 
-  useEffect(() => {}, []);
+  if (loading) {
+    return (
+      <div className="flex h-[70vh] items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
 
-  const onLayoutChange = React.useCallback((newLayout: any) => {
-    setLayout(newLayout);
-  }, []);
+  const activeDataset = data?.active_dataset;
+  const datasets = data?.datasets || [];
 
   return (
-    <div className="pb-20">
-      <DashboardHero3D />
-
-      <div ref={gridRef} className="relative">
-        <GridLayout
-          className="layout"
-          layout={layout}
-          // @ts-ignore - ReactGridLayout prop mismatch
-          cols={12}
-          rowHeight={100}
-          width={1200}
-          onLayoutChange={onLayoutChange}
-          onDragStart={() => setIsDragging(true)}
-          onDragStop={() => setIsDragging(false)}
-          onResizeStart={() => setIsDragging(true)}
-          onResizeStop={() => setIsDragging(false)}
-          draggableHandle=".drag-handle"
-          isResizable={true}
-          margin={[24, 24]}
-        >
-          {/* KPI 1 */}
-          <div key="kpi1">
-            <Card className="h-full bg-gradient-to-br from-blue-500/10 to-transparent backdrop-blur-2xl border border-blue-500/20 shadow-xl overflow-hidden flex flex-col justify-center p-6 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-blue-500/20">
-              <div className="drag-handle absolute top-2 right-2 opacity-0 group-hover:opacity-100 cursor-move text-muted-foreground p-1"><Zap className="w-4 h-4"/></div>
-              <p className="text-sm font-medium tracking-wider text-muted-foreground uppercase">Total Revenue</p>
-              <p className="text-4xl font-bold text-foreground mt-2">$24.5M</p>
-            </Card>
-          </div>
-
-          {/* KPI 2 */}
-          <div key="kpi2">
-            <Card className="h-full bg-gradient-to-br from-emerald-500/10 to-transparent backdrop-blur-2xl border border-emerald-500/20 shadow-xl overflow-hidden flex flex-col justify-center p-6 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-emerald-500/20">
-              <div className="drag-handle absolute top-2 right-2 opacity-0 group-hover:opacity-100 cursor-move text-muted-foreground p-1"><Activity className="w-4 h-4"/></div>
-              <p className="text-sm font-medium tracking-wider text-muted-foreground uppercase">Active Predictions</p>
-              <p className="text-4xl font-bold text-foreground mt-2">1,492</p>
-            </Card>
-          </div>
-
-          {/* KPI 3 */}
-          <div key="kpi3">
-            <Card className="h-full bg-gradient-to-br from-purple-500/10 to-transparent backdrop-blur-2xl border border-purple-500/20 shadow-xl overflow-hidden flex flex-col justify-center p-6 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-purple-500/20">
-              <div className="drag-handle absolute top-2 right-2 opacity-0 group-hover:opacity-100 cursor-move text-muted-foreground p-1"><Users className="w-4 h-4"/></div>
-              <p className="text-sm font-medium tracking-wider text-muted-foreground uppercase">Global Users</p>
-              <p className="text-4xl font-bold text-foreground mt-2">84</p>
-            </Card>
-          </div>
-
-          {/* KPI 4 */}
-          <div key="kpi4">
-            <Card className="h-full bg-gradient-to-br from-rose-500/10 to-transparent backdrop-blur-2xl border border-rose-500/20 shadow-xl overflow-hidden flex flex-col justify-center p-6 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-500/20">
-              <div className="drag-handle absolute top-2 right-2 opacity-0 group-hover:opacity-100 cursor-move text-muted-foreground p-1"><ShieldCheck className="w-4 h-4"/></div>
-              <p className="text-sm font-medium tracking-wider text-muted-foreground uppercase">System Health</p>
-              <p className="text-4xl font-bold text-emerald-500 mt-2">99.9%</p>
-            </Card>
-          </div>
-
-          {/* Sales Chart */}
-          <div key="sales" className="relative group">
-            <div className="drag-handle absolute top-2 right-2 z-50 opacity-0 group-hover:opacity-100 cursor-move text-muted-foreground bg-background/50 p-2 rounded-lg backdrop-blur-sm"><Activity className="w-4 h-4"/></div>
-            <div className={`h-full w-full ${isDragging ? 'pointer-events-none' : ''}`}>
-              <ErrorBoundary>
-                <SalesCharts />
-              </ErrorBoundary>
+    <div className="pb-16 max-w-[1600px] mx-auto space-y-8">
+      {/* Hero Header with Active Dataset Selector */}
+      <div className="w-full relative rounded-2xl overflow-hidden border border-border/50 shadow-sm bg-gradient-to-r from-primary/10 via-purple-500/5 to-transparent p-6 md:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-3">
+              <Sparkles className="w-3.5 h-3.5" /> Live Data Operations Command Center
             </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight mb-2">
+              Operations & Demand Dashboard
+            </h1>
+            <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
+              Telemetry and operational metrics computed directly from your imported datasets.
+            </p>
           </div>
 
-          {/* Insights Feed */}
-          <div key="insights" className="relative group">
-            <div className="drag-handle absolute top-2 right-2 z-50 opacity-0 group-hover:opacity-100 cursor-move text-muted-foreground bg-background/50 p-2 rounded-lg backdrop-blur-sm"><Database className="w-4 h-4"/></div>
-            <div className={`h-full w-full ${isDragging ? 'pointer-events-none' : ''} overflow-y-auto`}>
-              <ErrorBoundary>
-                <InsightsFeed />
-              </ErrorBoundary>
-            </div>
-          </div>
+          {/* Dataset Switcher and Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {datasets.length > 0 && (
+              <div className="relative">
+                <select
+                  value={activeDataset?.id || ""}
+                  onChange={(e) => setSelectedDatasetId(Number(e.target.value))}
+                  className="w-full sm:w-auto appearance-none bg-background/90 border border-border/70 text-foreground font-medium rounded-xl px-4 py-2.5 pr-9 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm transition-colors cursor-pointer"
+                >
+                  {datasets.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} {d.rows ? `(${d.rows.toLocaleString()} rows)` : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
+            )}
 
-          {/* Heatmap */}
-          <div key="heatmap" className="relative group">
-            <div className="drag-handle absolute top-2 right-2 z-50 opacity-0 group-hover:opacity-100 cursor-move text-muted-foreground bg-background/50 p-2 rounded-lg backdrop-blur-sm"><Activity className="w-4 h-4"/></div>
-            <div className={`h-full w-full ${isDragging ? 'pointer-events-none' : ''}`}>
-              <ErrorBoundary>
-                <Heatmap />
-              </ErrorBoundary>
-            </div>
+            <Link
+              to="/forecast"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-all text-xs shadow-md whitespace-nowrap"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>Import New Dataset</span>
+            </Link>
           </div>
-
-        </GridLayout>
+        </div>
       </div>
+
+      {!activeDataset ? (
+        <Card className="p-12 text-center border-dashed border-2 flex flex-col items-center justify-center space-y-4">
+          <div className="p-4 rounded-full bg-primary/10 text-primary">
+            <UploadCloud className="w-10 h-10" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">No Datasets Available</h2>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Import a sales, inventory, or demand dataset (CSV, Excel, or Parquet) to populate live analytics and train machine learning forecasting models.
+          </p>
+          <Link
+            to="/forecast"
+            className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-all text-sm mt-2 shadow-md"
+          >
+            <span>Upload Dataset to Begin</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </Card>
+      ) : (
+        <>
+          {/* Real KPI Cards Taken from Imported Dataset */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Total Demand */}
+            <Card className="p-6 border border-primary/20 bg-primary/5 shadow-sm hover:bg-primary/10 transition-colors">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Total {activeDataset.target_col}
+                </span>
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <Target className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-foreground mt-3 font-mono">
+                {Math.round(activeDataset.total_demand).toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                Sum of target variable across dataset
+              </p>
+            </Card>
+
+            {/* Daily Average Demand */}
+            <Card className="p-6 border border-emerald-500/20 bg-emerald-500/5 shadow-sm hover:bg-emerald-500/10 transition-colors">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Avg Daily Demand
+                </span>
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-foreground mt-3 font-mono">
+                {Math.round(activeDataset.avg_daily_demand).toLocaleString()}
+                <span className="text-sm font-normal text-muted-foreground ml-1">units/day</span>
+              </p>
+              <p className="text-xs text-emerald-500 font-medium mt-1.5 flex items-center gap-1">
+                Across {activeDataset.active_stores_count} distribution channel(s)
+              </p>
+            </Card>
+
+            {/* Ingested Records */}
+            <Card className="p-6 border border-purple-500/20 bg-purple-500/5 shadow-sm hover:bg-purple-500/10 transition-colors">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Ingested Records
+                </span>
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
+                  <Database className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-foreground mt-3 font-mono">
+                {activeDataset.total_rows.toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1.5 font-mono">
+                {activeDataset.total_columns} columns · {activeDataset.name}
+              </p>
+            </Card>
+
+            {/* Timeline Range */}
+            <Card className="p-6 border border-amber-500/20 bg-amber-500/5 shadow-sm hover:bg-amber-500/10 transition-colors">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Timeline Span
+                </span>
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                  <CalendarDays className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-xl font-bold text-foreground mt-3 font-mono truncate">
+                {activeDataset.date_range[0]}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1.5 font-mono">
+                → {activeDataset.date_range[1]} ({activeDataset.active_skus_count} SKUs)
+              </p>
+            </Card>
+          </div>
+
+          {/* Real Historical Chart + Real Dataset Insights Feed */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+            <div className="xl:col-span-8">
+              <ErrorBoundary>
+                <SalesCharts 
+                  historicalData={activeDataset.historical_series}
+                  datasetName={activeDataset.name}
+                  targetCol={activeDataset.target_col}
+                  avgDailyDemand={activeDataset.avg_daily_demand}
+                  totalDemand={activeDataset.total_demand}
+                />
+              </ErrorBoundary>
+            </div>
+
+            <div className="xl:col-span-4">
+              <ErrorBoundary>
+                <InsightsFeed 
+                  alerts={activeDataset.recent_alerts}
+                  datasetName={activeDataset.name}
+                  categoryDistribution={activeDataset.category_distribution}
+                  datasetId={activeDataset.id}
+                />
+              </ErrorBoundary>
+            </div>
+          </div>
+
+          {/* Real Category & SKU Breakdown */}
+          <div>
+            <ErrorBoundary>
+              <Heatmap 
+                categoryData={activeDataset.category_distribution}
+                topProducts={activeDataset.top_products}
+                targetCol={activeDataset.target_col}
+              />
+            </ErrorBoundary>
+          </div>
+        </>
+      )}
     </div>
   );
 }

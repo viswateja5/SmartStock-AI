@@ -5,7 +5,6 @@ from app.core.config import settings
 from app.api.deps import RequireRole
 
 router = APIRouter(
-    prefix="/api",
     tags=["Model Management"]
 )
 

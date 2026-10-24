@@ -118,13 +118,14 @@ class TimeFeatureExtractor(BaseEstimator, TransformerMixin):
 
 class LagRollingFeatureExtractor(BaseEstimator, TransformerMixin):
     """
-    Creates lag and rolling features.
-    Grouping by Store_ID and Product_ID.
-    Ensure dataframe is sorted by Date before calling transform!
+    Creates lag and rolling features safely.
+    Groups by Store_ID and Product_ID if available, or operates globally.
+    Ensures dataframe is sorted by Date before calling transform.
+    Strictly uses historical observations (t-1 and prior) to prevent target leakage.
     """
-    def __init__(self, date_col='Date', group_cols=['Store_ID', 'Product_ID'], target_col='Sales', lags=[1, 7, 14, 30], windows=[7]):
+    def __init__(self, date_col='Date', group_cols=None, target_col='Sales', lags=[1, 7, 14, 30], windows=[7, 14, 30]):
         self.date_col = date_col
-        self.group_cols = group_cols
+        self.group_cols = group_cols if group_cols is not None else ['Store_ID', 'Product_ID']
         self.target_col = target_col
         self.lags = lags
         self.windows = windows
@@ -134,80 +135,144 @@ class LagRollingFeatureExtractor(BaseEstimator, TransformerMixin):
         
     def transform(self, X):
         X_df = pd.DataFrame(X).copy()
-        if self.target_col not in X_df.columns or not all(c in X_df.columns for c in self.group_cols):
+        if self.target_col not in X_df.columns:
             return X_df
             
-        X_df = X_df.sort_values(by=[*self.group_cols, self.date_col])
-        grouped = X_df.groupby(self.group_cols)[self.target_col]
+        active_groups = [c for c in self.group_cols if c in X_df.columns]
         
-        # Lags
-        for lag in self.lags:
-            X_df[f'{self.target_col}_Lag_{lag}'] = grouped.shift(lag)
+        # Sort chronologically (within groups if present)
+        sort_cols = [*active_groups, self.date_col] if self.date_col in X_df.columns else active_groups
+        if sort_cols:
+            X_df = X_df.sort_values(by=sort_cols).reset_index(drop=True)
             
-        # Rolling Features (CRITICAL FIX: Shift by 1 before rolling to prevent data leakage!)
-        grouped_shifted = grouped.shift(1)
-        
-        for window in self.windows:
-            rolling_obj = grouped_shifted.rolling(window=window, min_periods=1)
-            # Need to align index back to original dataframe because grouped.rolling returns MultiIndex
-            X_df[f'Rolling_Mean_{window}'] = rolling_obj.mean().reset_index(level=self.group_cols, drop=True)
-            X_df[f'Rolling_Median_{window}'] = rolling_obj.median().reset_index(level=self.group_cols, drop=True)
-            X_df[f'Rolling_Std_{window}'] = rolling_obj.std().reset_index(level=self.group_cols, drop=True)
-            X_df[f'Rolling_Max_{window}'] = rolling_obj.max().reset_index(level=self.group_cols, drop=True)
-            X_df[f'Rolling_Min_{window}'] = rolling_obj.min().reset_index(level=self.group_cols, drop=True)
+        # Lags
+        if active_groups:
+            grouped = X_df.groupby(active_groups)[self.target_col]
+            for lag in self.lags:
+                X_df[f'{self.target_col}_Lag_{lag}'] = grouped.shift(lag)
+                
+            # Rolling Features (Strictly shift by 1 first so current-period target NEVER leaks into rolling stats)
+            for window in self.windows:
+                X_df[f'Rolling_Mean_{window}'] = grouped.transform(lambda s: s.shift(1).rolling(window=window, min_periods=1).mean())
+                X_df[f'Rolling_Median_{window}'] = grouped.transform(lambda s: s.shift(1).rolling(window=window, min_periods=1).median())
+                X_df[f'Rolling_Std_{window}'] = grouped.transform(lambda s: s.shift(1).rolling(window=window, min_periods=1).std())
+                X_df[f'Rolling_Max_{window}'] = grouped.transform(lambda s: s.shift(1).rolling(window=window, min_periods=1).max())
+                X_df[f'Rolling_Min_{window}'] = grouped.transform(lambda s: s.shift(1).rolling(window=window, min_periods=1).min())
+        else:
+            shifted = X_df[self.target_col].shift(1)
+            for lag in self.lags:
+                X_df[f'{self.target_col}_Lag_{lag}'] = X_df[self.target_col].shift(lag)
+            for window in self.windows:
+                rolling_obj = shifted.rolling(window=window, min_periods=1)
+                X_df[f'Rolling_Mean_{window}'] = rolling_obj.mean()
+                X_df[f'Rolling_Median_{window}'] = rolling_obj.median()
+                X_df[f'Rolling_Std_{window}'] = rolling_obj.std()
+                X_df[f'Rolling_Max_{window}'] = rolling_obj.max()
+                X_df[f'Rolling_Min_{window}'] = rolling_obj.min()
             
         return X_df
 
 class InventoryPriceFeatureExtractor(BaseEstimator, TransformerMixin):
     """
     Creates inventory and price related features.
+    Guaranteed zero target leakage: never accesses current period target.
     """
+    def __init__(self, target_col='Sales', group_cols=None):
+        self.target_col = target_col
+        self.group_cols = group_cols if group_cols is not None else ['Store_ID', 'Product_ID']
+
     def fit(self, X, y=None):
         return self
         
     def transform(self, X):
         X_df = pd.DataFrame(X).copy()
         
-        # Inventory Features
-        # Average Daily Demand using the Rolling_Mean_7 we generated
+        # Average Daily Demand derived strictly from historical lag-1 rolling statistics
         if 'Rolling_Mean_7' in X_df.columns:
             X_df['Average_Daily_Demand'] = X_df['Rolling_Mean_7']
+        elif f'{self.target_col}_Lag_1' in X_df.columns:
+            X_df['Average_Daily_Demand'] = X_df[f'{self.target_col}_Lag_1']
         else:
-            X_df['Average_Daily_Demand'] = X_df['Sales'] # Fallback
+            X_df['Average_Daily_Demand'] = 1.0 # Safe constant baseline
             
-        # Days Until Stockout (prevent division by zero)
-        X_df['Days_Until_Stockout'] = X_df['Inventory'] / X_df['Average_Daily_Demand'].replace(0, 1)
+        # Days Until Stockout (inventory available / demand forecast)
+        if 'Inventory' in X_df.columns:
+            safe_demand = X_df['Average_Daily_Demand'].replace(0, 1).fillna(1)
+            X_df['Days_Until_Stockout'] = X_df['Inventory'] / safe_demand
         
-        # Safety Stock = Z (assume 1.65 for 95% service level) * Std_Dev * sqrt(Lead_Time)
-        # Simplified: using Rolling_Std_7 as Std_Dev
+        # Safety Stock = Z (1.65 for 95% service level) * Std_Dev * sqrt(Lead_Time)
         if 'Rolling_Std_7' in X_df.columns and 'Supplier_Lead_Time' in X_df.columns:
             std_dev = X_df['Rolling_Std_7'].fillna(0)
-            lead_time = X_df['Supplier_Lead_Time']
+            lead_time = np.maximum(X_df['Supplier_Lead_Time'].fillna(1), 1)
             X_df['Safety_Stock'] = 1.65 * std_dev * np.sqrt(lead_time)
-        else:
-            X_df['Safety_Stock'] = 0
+        elif 'Supplier_Lead_Time' in X_df.columns:
+            X_df['Safety_Stock'] = 1.65 * np.sqrt(np.maximum(X_df['Supplier_Lead_Time'].fillna(1), 1))
             
-        # Price Features
-        if 'Price' in X_df.columns and 'Cost' in X_df.columns:
-            # Discount % (could be inferred if we have original price, or just use Discount col)
-            if 'Discount' not in X_df.columns:
-                X_df['Discount_%'] = (X_df['Price'] - X_df['Cost']) / X_df['Price'].replace(0, 1)
+        # Price and Discount Features
+        if 'Price' in X_df.columns:
+            if 'Cost' in X_df.columns:
+                if 'Discount' not in X_df.columns and 'Discount_Percent' not in X_df.columns:
+                    X_df['Discount_%'] = np.clip((X_df['Price'] - X_df['Cost']) / X_df['Price'].replace(0, 1), 0, 1)
+                elif 'Discount' in X_df.columns:
+                    X_df['Discount_%'] = X_df['Discount']
+                elif 'Discount_Percent' in X_df.columns:
+                    X_df['Discount_%'] = X_df['Discount_Percent']
+                    
+                X_df['Price_Difference'] = X_df['Price'] - X_df['Cost']
+            
+            # Historical Elasticity Proxy: uses lag_1 vs lag_2 (STRICTLY HISTORICAL, NEVER USES TODAY'S SALES)
+            active_groups = [c for c in self.group_cols if c in X_df.columns]
+            grouped_price = X_df.groupby(active_groups)['Price'] if active_groups else None
+            
+            if grouped_price is not None:
+                X_df['Price_Lag_1'] = grouped_price.shift(1)
+                X_df['Price_Lag_2'] = grouped_price.shift(2)
             else:
-                X_df['Discount_%'] = X_df['Discount']
+                X_df['Price_Lag_1'] = X_df['Price'].shift(1)
+                X_df['Price_Lag_2'] = X_df['Price'].shift(2)
                 
-            X_df['Price_Difference'] = X_df['Price'] - X_df['Cost']
-            
-            # Elasticity Proxy = % change in Sales / % change in Price (comparing to lag 1)
-            if 'Sales_Lag_1' in X_df.columns:
-                # Need Price Lag 1 too for true elasticity, computing locally
-                grouped = X_df.groupby(['Store_ID', 'Product_ID'])['Price']
-                X_df['Price_Lag_1'] = grouped.shift(1)
-                
-                pct_change_sales = (X_df['Sales'] - X_df['Sales_Lag_1']) / X_df['Sales_Lag_1'].replace(0, 1)
-                pct_change_price = (X_df['Price'] - X_df['Price_Lag_1']) / X_df['Price_Lag_1'].replace(0, 1)
-                
-                # Handling inf/-inf/nan
-                elasticity = pct_change_sales / pct_change_price.replace(0, 0.0001)
-                X_df['Elasticity'] = elasticity.replace([np.inf, -np.inf], np.nan).fillna(0)
+            lag1_col = f'{self.target_col}_Lag_1'
+            lag2_col = f'{self.target_col}_Lag_2'
+            if lag1_col in X_df.columns and lag2_col in X_df.columns:
+                pct_change_sales_hist = (X_df[lag1_col] - X_df[lag2_col]) / X_df[lag2_col].replace(0, 1).fillna(1)
+                pct_change_price_hist = (X_df['Price_Lag_1'] - X_df['Price_Lag_2']) / X_df['Price_Lag_2'].replace(0, 1).fillna(1)
+                elasticity = pct_change_sales_hist / pct_change_price_hist.replace(0, 0.0001)
+                X_df['Historical_Elasticity'] = elasticity.replace([np.inf, -np.inf], np.nan).fillna(0)
             
         return X_df
+
+class TargetLeakageFilter(BaseEstimator, TransformerMixin):
+    """
+    Detects and excludes known target leakage columns from the feature matrix.
+    Prevents artificial near-zero MAPE scores by ensuring no future or target-derived
+    metrics (like Revenue = Price * Target or Closing_Stock = Opening_Stock - Target)
+    enter the model predictors.
+    """
+    LEAKAGE_KEYWORDS = [
+        'revenue', 'revenue_inr', 'closing_stock', 'profit', 'margin', 
+        'total_amount', 'net_sales', 'gross_sales', 'stockout_flag'
+    ]
+
+    def __init__(self, target_col='Sales', date_col='Date', custom_excludes=None):
+        self.target_col = target_col
+        self.date_col = date_col
+        self.custom_excludes = custom_excludes or []
+        self.excluded_columns_ = []
+
+    def fit(self, X, y=None):
+        X_df = pd.DataFrame(X)
+        self.excluded_columns_ = []
+        for col in X_df.columns:
+            col_lower = col.lower().strip()
+            if col == self.target_col or col == self.date_col:
+                self.excluded_columns_.append(col)
+            elif any(k == col_lower or f"_{k}" in col_lower or f"{k}_" in col_lower for k in self.LEAKAGE_KEYWORDS):
+                self.excluded_columns_.append(col)
+            elif col in self.custom_excludes:
+                self.excluded_columns_.append(col)
+        return self
+
+    def transform(self, X):
+        X_df = pd.DataFrame(X).copy()
+        cols_to_drop = [c for c in self.excluded_columns_ if c in X_df.columns]
+        return X_df.drop(columns=cols_to_drop)

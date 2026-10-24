@@ -25,7 +25,14 @@ MANIFEST
 
 # Virtual Environment
 venv/
+.venv/
+backend/.venv/
 .env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # Frontend / Node
 node_modules/

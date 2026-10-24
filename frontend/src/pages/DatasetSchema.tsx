@@ -17,7 +17,7 @@ const ROLES = [
   { id: 'numerical', label: 'Numerical Feature', icon: Hash },
   { id: 'categorical', label: 'Categorical Feature', icon: Tag },
   { id: 'identifier', label: 'Identifier (ID)', icon: Fingerprint },
-  { id: 'ignore', label: 'Ignore Column', icon: AlertTriangle }
+  { id: 'ignore', label: 'Exclude (Target Leakage Risk)', icon: AlertTriangle }
 ];
 
 export function DatasetSchema() {
@@ -128,8 +128,13 @@ export function DatasetSchema() {
         <div className="divide-y divide-border">
           {columns.map((col) => (
             <div key={col.name} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-card/50 transition-colors">
-              <div className="col-span-3 font-medium truncate" title={col.name}>
-                {col.name}
+              <div className="col-span-3 font-medium truncate flex items-center gap-1.5" title={col.name}>
+                <span className="truncate">{col.name}</span>
+                {col.role === 'ignore' && (
+                  <span className="text-[10px] bg-rose-500/10 text-rose-500 border border-rose-500/20 px-1.5 py-0.5 rounded font-normal shrink-0">
+                    Leakage Risk
+                  </span>
+                )}
               </div>
               <div className="col-span-2">
                 <span className="text-xs px-2 py-1 bg-muted rounded-md uppercase tracking-wider">{col.type}</span>

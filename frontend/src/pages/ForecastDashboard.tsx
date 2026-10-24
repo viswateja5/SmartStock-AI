@@ -5,6 +5,9 @@ import { KPIBanner } from '../components/dashboard/KPIBanner';
 import { DatasetSummary } from '../components/dashboard/DatasetSummary';
 import { ModelComparisonTable } from '../components/dashboard/ModelComparisonTable';
 import { ForecastChart } from '../components/dashboard/ForecastChart';
+import { MonthlyForecastChart } from '../components/dashboard/MonthlyForecastChart';
+import { CumulativeDemandChart } from '../components/dashboard/CumulativeDemandChart';
+import { DayOfWeekSeasonalityChart } from '../components/dashboard/DayOfWeekSeasonalityChart';
 import { ResidualAnalysis } from '../components/dashboard/ResidualAnalysis';
 import { SHAPAnalysis } from '../components/dashboard/SHAPAnalysis';
 import { ForecastDataTable } from '../components/dashboard/ForecastDataTable';
@@ -35,11 +38,16 @@ export const ForecastDashboard = React.memo(function ForecastDashboard({ data, o
   }, [analytics]);
 
   const residualScatterData = useMemo(() => {
+    if (residualAnalysis.scatter && residualAnalysis.scatter.length > 0) {
+      return residualAnalysis.scatter;
+    }
     if (!analytics.test_actual || !analytics.test_predicted) return [];
     return analytics.test_actual.map((act: number, i: number) => ({
-      actual: act, residual: act - analytics.test_predicted[i]
+      actual: act, 
+      predicted: analytics.test_predicted[i] ?? act,
+      residual: act - (analytics.test_predicted[i] ?? act)
     }));
-  }, [analytics]);
+  }, [analytics, residualAnalysis]);
 
   const featureData = useMemo(() => {
     const importances = analytics.shap_values || analytics.feature_importance || {};
@@ -70,7 +78,12 @@ export const ForecastDashboard = React.memo(function ForecastDashboard({ data, o
       </div>
 
       {/* KPI Section */}
-      <KPIBanner champion_model={champion_model} metrics={metrics} metadata={metadata} />
+      <KPIBanner 
+        champion_model={champion_model} 
+        metrics={metrics} 
+        metadata={metadata} 
+        confidence={analytics.confidence || data.confidence}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 min-w-0 w-full">
         {/* Left Side: Model Comparison & Dataset Summary */}
@@ -83,8 +96,34 @@ export const ForecastDashboard = React.memo(function ForecastDashboard({ data, o
         <div className="col-span-1 lg:col-span-3 space-y-8 min-w-0">
           <AIInsights insights={analytics?.insights || []} />
           
+          {/* 1. Main Daily Forecast Trajectory Chart */}
           <ForecastChart data={mainChartData} />
 
+          {/* 2. Monthly Projected Aggregates & Multi-Month Trend Chart */}
+          <MonthlyForecastChart 
+            dates={analytics.forecast_dates}
+            values={analytics.forecast_values}
+            lower={analytics.ci_lower}
+            upper={analytics.ci_upper}
+            historicalDates={analytics.historical_dates}
+            historicalActuals={analytics.historical_actuals}
+          />
+
+          {/* 3. Cumulative Procurement Curve & Day-of-Week Seasonality */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <CumulativeDemandChart 
+              dates={analytics.forecast_dates}
+              values={analytics.forecast_values}
+              lower={analytics.ci_lower}
+              upper={analytics.ci_upper}
+            />
+            <DayOfWeekSeasonalityChart 
+              dates={analytics.forecast_dates}
+              values={analytics.forecast_values}
+            />
+          </div>
+
+          {/* 4. Model Explainability & Residual Diagnostics */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
             <SHAPAnalysis featureData={featureData} />
             <ResidualAnalysis 

@@ -1,5 +1,8 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+
+BASE_PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "SmartStock AI"
@@ -17,10 +20,10 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Paths (useful for ML models)
-    BASE_DIR: str = "/Users/mac/.gemini/antigravity-ide/scratch/smartstock-ai"
-    MODEL_PATH: str = f"{BASE_DIR}/backend/reports/ml_models/best_forecaster.joblib"
-    DATA_PATH: str = f"{BASE_DIR}/data/processed/train_processed.csv"
+    BASE_DIR: str = BASE_PROJECT_DIR
+    MODEL_PATH: str = os.path.join(BASE_PROJECT_DIR, "backend", "reports", "ml_models", "best_forecaster.joblib")
+    DATA_PATH: str = os.path.join(BASE_PROJECT_DIR, "data", "processed", "train_processed.csv")
     
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()

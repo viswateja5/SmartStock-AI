@@ -1,22 +1,13 @@
-import { motion } from "framer-motion"
-import type { HTMLMotionProps } from "framer-motion"
+import React from "react"
 
-interface SkeletonProps extends HTMLMotionProps<"div"> {
+interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string
 }
 
 export function Skeleton({ className = "", ...props }: SkeletonProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0.5 }}
-      animate={{ opacity: 1 }}
-      transition={{
-        repeat: Infinity,
-        repeatType: "reverse",
-        duration: 1,
-        ease: "easeInOut"
-      }}
-      className={`bg-muted/50 rounded-xl ${className}`}
+    <div
+      className={`bg-muted/40 animate-pulse rounded-xl ${className}`}
       {...props}
     />
   )

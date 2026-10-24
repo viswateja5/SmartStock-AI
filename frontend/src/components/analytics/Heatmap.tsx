@@ -1,113 +1,131 @@
-import React from "react"
-import { Card } from "../ui/Card"
-import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts"
+import React from "react";
+import { Card } from "../ui/Card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { Layers, Package } from "lucide-react";
 
-const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const hours = Array.from({ length: 12 }).map((_, i) => `${(i + 8).toString().padStart(2, '0')}:00`) // 8am to 7pm
-
-interface HeatmapEntry {
-  day: string;
-  hour: string;
-  dayIndex: number;
-  hourIndex: number;
-  demand: number;
-}
-const heatmapData: HeatmapEntry[] = []
-for (let d = 0; d < days.length; d++) {
-  for (let h = 0; h < hours.length; h++) {
-    heatmapData.push({
-      day: days[d],
-      hour: hours[h],
-      dayIndex: d,
-      hourIndex: h,
-      demand: Math.floor(Math.random() * 100),
-    })
-  }
+interface CategoryBreakdownProps {
+  categoryData?: Array<{ category: string; value: number }>;
+  topProducts?: Array<{ name: string; volume: number }>;
+  targetCol?: string;
 }
 
-export const Heatmap = React.memo(function Heatmap() {
-  // Color scale for heatmap based on demand
-  const getColor = (value: number) => {
-    if (value > 80) return '#ef4444' // High demand (Red)
-    if (value > 50) return '#f59e0b' // Medium demand (Orange)
-    if (value > 20) return '#10b981' // Low demand (Green)
-    return '#3f3f46' // Minimal demand (Gray)
-  }
-
-  const CustomShape = (props: any) => {
-    const { cx, cy, payload } = props
-    const size = 35 // Size of the heatmap square
-    return (
-      <rect 
-        x={cx - size / 2} 
-        y={cy - size / 2} 
-        width={size} 
-        height={size} 
-        fill={getColor(payload.demand)} 
-        rx={4} // Rounded corners
-        ry={4}
-        className="transition-colors duration-500 hover:opacity-80 cursor-pointer"
-      />
-    )
-  }
+export const Heatmap = React.memo(function Heatmap({
+  categoryData = [],
+  topProducts = [],
+  targetCol = "Units Sold"
+}: CategoryBreakdownProps) {
+  const colors = ["#6366f1", "#8b5cf6", "#ec4899", "#3b82f6", "#10b981", "#f59e0b"];
 
   return (
-    <Card className="p-6 h-[500px]">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="font-semibold">Weekly Demand Heatmap</h3>
-        <div className="flex gap-2 items-center text-xs text-muted-foreground">
-           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-[#3f3f46]"></span> Minimal</span>
-           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-[#10b981]"></span> Low</span>
-           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-[#f59e0b]"></span> Medium</span>
-           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-[#ef4444]"></span> High</span>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Category Demand Distribution Chart */}
+      <Card className="lg:col-span-7 p-6 h-[400px] flex flex-col justify-between backdrop-blur-2xl bg-card/60 border border-border/50 shadow-sm">
+        <div className="flex justify-between items-center mb-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-foreground text-lg">Category Demand Breakdown</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Aggregated historical {targetCol} distribution across product categories
+            </p>
+          </div>
+          <span className="text-xs font-mono text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border/40">
+            {categoryData.length} Categories
+          </span>
         </div>
-      </div>
-      
-      <ResponsiveContainer width="100%" height="100%">
-        <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} horizontal={false} />
-          
-          <XAxis 
-            type="category" 
-            dataKey="hour" 
-            name="Time" 
-            allowDuplicatedCategory={false} 
-            stroke="var(--muted-foreground)" 
-            fontSize={12} 
-            tickLine={false} 
-            axisLine={false} 
-          />
-          <YAxis 
-            type="category" 
-            dataKey="day" 
-            name="Day" 
-            allowDuplicatedCategory={false} 
-            stroke="var(--muted-foreground)" 
-            fontSize={12} 
-            tickLine={false} 
-            axisLine={false} 
-          />
-          <ZAxis type="number" dataKey="demand" range={[100, 100]} />
-          
-          <Tooltip 
-            cursor={{ strokeDasharray: '3 3' }}
-            content={({ active, payload }) => {
-              if (active && payload && payload.length) {
-                const data = payload[0].payload
-                return (
-                  <div className="glass p-3 rounded-xl border border-border shadow-soft-sm">
-                    <p className="font-semibold text-sm">{data.day} at {data.hour}</p>
-                    <p className="text-sm text-primary mt-1">Demand Score: {data.demand}</p>
+
+        <div className="flex-1 w-full min-h-[280px]">
+          {categoryData.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+              No category column detected in this dataset.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart layout="vertical" data={categoryData} margin={{ top: 10, right: 30, left: 60, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border)" opacity={0.5} />
+                <XAxis 
+                  type="number" 
+                  stroke="var(--muted-foreground)" 
+                  fontSize={11} 
+                  tickLine={false} 
+                  axisLine={false}
+                  tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
+                />
+                <YAxis 
+                  dataKey="category" 
+                  type="category" 
+                  stroke="var(--muted-foreground)" 
+                  fontSize={11} 
+                  tickLine={false} 
+                  axisLine={false}
+                  width={75}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(23, 23, 28, 0.95)', 
+                    borderRadius: '12px', 
+                    border: '1px solid var(--border)',
+                    fontSize: '12px' 
+                  }}
+                  itemStyle={{ color: '#ffffff' }}
+                  formatter={(val: any) => [`${Number(val).toLocaleString()} units`, 'Total Demand']}
+                />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                  {categoryData.map((_, i) => (
+                    <Cell key={i} fill={colors[i % colors.length]} fillOpacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </Card>
+
+      {/* Top SKUs / Products Table */}
+      <Card className="lg:col-span-5 p-6 h-[400px] flex flex-col justify-between backdrop-blur-2xl bg-card/60 border border-border/50 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Package className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold text-foreground text-lg">Top Performing SKUs</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">Highest volume items recorded in imported dataset</p>
+
+          <div className="space-y-3">
+            {topProducts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                No distinct SKU/Product identifiers found in dataset.
+              </div>
+            ) : (
+              topProducts.map((prod, idx) => (
+                <div 
+                  key={prod.name} 
+                  className="flex items-center justify-between p-3 rounded-xl border border-border/50 bg-card/40 hover:bg-card/70 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary font-bold text-xs flex items-center justify-center font-mono">
+                      #{idx + 1}
+                    </span>
+                    <div>
+                      <p className="font-semibold text-xs text-foreground truncate max-w-[150px]">{prod.name}</p>
+                      <p className="text-[11px] text-muted-foreground">High volume product</p>
+                    </div>
                   </div>
-                )
-              }
-              return null
-            }}
-          />
-          
-          <Scatter data={heatmapData} shape={<CustomShape />} animationDuration={1000} />
-        </ScatterChart>
-      </ResponsiveContainer>
-    </Card>
-  )
-})
+                  <div className="text-right">
+                    <p className="font-mono font-semibold text-xs text-foreground">{prod.volume.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground">total units</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-border/50 pt-3 text-[11px] text-muted-foreground flex justify-between">
+          <span>Ranked by cumulative historical volume</span>
+          <span className="font-mono text-primary">Imported Records</span>
+        </div>
+      </Card>
+    </div>
+  );
+});

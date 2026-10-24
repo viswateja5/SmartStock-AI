@@ -1,8 +1,7 @@
 import * as React from "react"
-import { motion, type HTMLMotionProps } from "framer-motion"
 import { cn } from "../../lib/utils"
 
-export interface ButtonProps extends HTMLMotionProps<"button"> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
 }
@@ -11,7 +10,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', children, ...props }, ref) => {
     
     const variants = {
-      primary: "animated-gradient text-primary-foreground shadow-soft-md border-transparent",
+      primary: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
       secondary: "glass hover:bg-white/10 text-foreground border-white/20",
       ghost: "hover:bg-muted text-foreground bg-transparent border-transparent shadow-none"
     }
@@ -23,10 +22,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     }
     
     return (
-      <motion.button
+      <button
         ref={ref}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
         className={cn(
           "inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50",
           variants[variant],
@@ -36,7 +33,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {children}
-      </motion.button>
+      </button>
     )
   }
 )

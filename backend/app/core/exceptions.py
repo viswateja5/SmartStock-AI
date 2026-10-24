@@ -12,7 +12,7 @@ async def api_error_handler(request: Request, exc: APIError):
     logger.error("api_error", path=request.url.path, detail=exc.message, status_code=exc.status_code)
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": exc.message}
+        content={"error": exc.message, "detail": exc.message}
     )
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

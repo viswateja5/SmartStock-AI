@@ -13,7 +13,6 @@ from app.api.deps import RequireRole
 from app.core.exceptions import APIError
 
 router = APIRouter(
-    prefix="/api/v1/admin",
     tags=["Admin Dashboard"],
     dependencies=[Depends(RequireRole(["admin"]))]
 )

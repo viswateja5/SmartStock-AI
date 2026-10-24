@@ -1,131 +1,119 @@
-import { memo } from "react"
-import { motion, type Variants } from "framer-motion"
-import { TrendingUp, AlertTriangle, Sparkles, AlertCircle, ArrowRight } from "lucide-react"
+import { memo } from "react";
+import { TrendingUp, AlertTriangle, Sparkles, CheckCircle2, ArrowRight, ShieldCheck } from "lucide-react";
+import { Card } from "../ui/Card";
+import { Link } from "react-router-dom";
 
-type InsightType = 'trend' | 'risk' | 'anomaly' | 'recommendation'
-
-interface Insight {
-  id: string
-  type: InsightType
-  title: string
-  description: string
-  metric?: string
+interface AlertItem {
+  title: string;
+  message: string;
+  severity?: string;
 }
 
-const mockInsights: Insight[] = [
-  {
-    id: "1",
-    type: "trend",
-    title: "Demand Surge",
-    description: "Expected to increase across all active electronics SKUs.",
-    metric: "+18%"
-  },
-  {
-    id: "2",
-    type: "anomaly",
-    title: "Holiday Spike Detected",
-    description: "Upcoming long weekend is driving unprecedented early buys."
-  },
-  {
-    id: "3",
-    type: "recommendation",
-    title: "Promotion Impact",
-    description: "Recent flash sale increased total categorical sales.",
-    metric: "+23%"
-  },
-  {
-    id: "4",
-    type: "risk",
-    title: "Stock-out Risk High",
-    description: "Supplier delays may affect inventory for P1002.",
-  },
-]
+interface InsightsFeedProps {
+  alerts?: AlertItem[];
+  datasetName?: string;
+  categoryDistribution?: Array<{ category: string; value: number }>;
+  datasetId?: number;
+}
 
-export const InsightsFeed = memo(function InsightsFeed() {
-  const container: Variants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
+export const InsightsFeed = memo(function InsightsFeed({
+  alerts = [],
+  datasetName = "Active Dataset",
+  categoryDistribution = [],
+  datasetId
+}: InsightsFeedProps) {
+  const getSeverityStyles = (severity: string = 'low') => {
+    switch (severity.toLowerCase()) {
+      case 'high':
+      case 'risk':
+        return "bg-rose-500/10 border-rose-500/20 text-rose-500";
+      case 'medium':
+      case 'warning':
+        return "bg-amber-500/10 border-amber-500/20 text-amber-500";
+      default:
+        return "bg-emerald-500/10 border-emerald-500/20 text-emerald-500";
     }
-  }
+  };
 
-  // Uses strict transform properties (x) instead of margins to guarantee GPU acceleration (60 FPS)
-  const item: Variants = {
-    hidden: { opacity: 0, x: -30, scale: 0.95 },
-    show: { opacity: 1, x: 0, scale: 1, transition: { type: "spring", stiffness: 400, damping: 30 } }
-  }
-
-  const getTypeStyles = (type: InsightType) => {
-    switch (type) {
-      case 'trend': return "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
-      case 'risk': return "bg-red-500/10 border-red-500/20 text-red-500"
-      case 'anomaly': return "bg-purple-500/10 border-purple-500/20 text-purple-500"
-      case 'recommendation': return "bg-blue-500/10 border-blue-500/20 text-blue-500"
+  const getSeverityIcon = (severity: string = 'low') => {
+    switch (severity.toLowerCase()) {
+      case 'high':
+      case 'risk':
+        return <AlertTriangle className="w-4 h-4 text-rose-500" />;
+      case 'medium':
+      case 'warning':
+        return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      default:
+        return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
     }
-  }
-
-  const getTypeIcon = (type: InsightType) => {
-    switch (type) {
-      case 'trend': return <TrendingUp className="w-4 h-4" />
-      case 'risk': return <AlertTriangle className="w-4 h-4" />
-      case 'anomaly': return <Sparkles className="w-4 h-4" />
-      case 'recommendation': return <AlertCircle className="w-4 h-4" />
-    }
-  }
+  };
 
   return (
-    <section className="mb-8 overflow-hidden relative" aria-label="AI Business Insights">
-      <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-      
-      <motion.div 
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="flex gap-4 overflow-x-auto pb-4 pt-2 px-2 snap-x scrollbar-hide"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        role="region"
-        aria-label="Scrollable insights feed"
-        tabIndex={0}
-      >
-        {mockInsights.map((insight) => (
-          <motion.div
-            key={insight.id}
-            variants={item}
-            whileHover={{ y: -8, scale: 1.02 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className={`min-w-[280px] max-w-[320px] snap-center glass rounded-2xl p-5 relative overflow-hidden group cursor-pointer border ${getTypeStyles(insight.type).split(' ')[1]}`}
-            role="article"
-            aria-labelledby={`insight-title-${insight.id}`}
-          >
-            {/* Background animated glow */}
-            <div className={`absolute -top-10 -right-10 w-32 h-32 blur-3xl opacity-20 rounded-full transition-all duration-500 group-hover:scale-150 group-hover:opacity-60 ${getTypeStyles(insight.type).split(' ')[0]}`} aria-hidden="true" />
-            
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-3">
-                <div className={`p-2 rounded-xl ${getTypeStyles(insight.type)}`} aria-hidden="true">
-                  {getTypeIcon(insight.type)}
+    <Card className="p-6 h-full flex flex-col justify-between backdrop-blur-2xl bg-card/60 border border-border/50 shadow-sm">
+      <div>
+        <div className="flex justify-between items-center mb-5">
+          <div>
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" /> Live Dataset Telemetry
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Real-time status for {datasetName}</p>
+          </div>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">
+            {alerts.length} Records
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {alerts.length === 0 ? (
+            <div className="p-4 rounded-xl border border-border/50 bg-card/40 text-xs text-muted-foreground text-center">
+              No active alerts. Dataset records are fully synchronized.
+            </div>
+          ) : (
+            alerts.map((alert, idx) => (
+              <div
+                key={idx}
+                className="rounded-xl p-3.5 border border-border/50 bg-card/40 hover:bg-card/70 transition-colors"
+              >
+                <div className="flex items-start gap-2.5">
+                  <div className={`p-1.5 rounded-lg shrink-0 ${getSeverityStyles(alert.severity)}`}>
+                    {getSeverityIcon(alert.severity)}
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-xs text-foreground mb-0.5">{alert.title}</h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{alert.message}</p>
+                  </div>
                 </div>
-                {insight.metric && (
-                  <span className={`text-lg font-semibold ${getTypeStyles(insight.type).split(' ')[2]}`}>
-                    {insight.metric}
-                  </span>
-                )}
               </div>
-              
-              <h4 id={`insight-title-${insight.id}`} className="font-semibold text-foreground mb-1">{insight.title}</h4>
-              <p className="text-sm text-muted-foreground line-clamp-2">{insight.description}</p>
-              
-              <div className="mt-4 flex items-center text-xs font-medium text-foreground opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
-                View Details <ArrowRight className="w-3 h-3 ml-1" />
+            ))
+          )}
+
+          {categoryDistribution.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Top Categories in Dataset
+              </p>
+              <div className="space-y-1.5">
+                {categoryDistribution.slice(0, 4).map((cat) => (
+                  <div key={cat.category} className="flex justify-between text-xs">
+                    <span className="text-foreground">{cat.category}</span>
+                    <span className="font-mono text-muted-foreground">{cat.value.toLocaleString()} units</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </motion.div>
-        ))}
-      </motion.div>
-    </section>
-  )
-})
+          )}
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-border/50 mt-4">
+        <Link
+          to={datasetId ? `/forecast?dataset=${datasetId}` : "/forecast"}
+          className="flex items-center justify-between w-full text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+        >
+          <span>Run ML Forecast on this Dataset</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    </Card>
+  );
+});

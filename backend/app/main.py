@@ -18,7 +18,7 @@ from app.core.exceptions import (
     validation_exception_handler, 
     global_exception_handler
 )
-from app.api.routers import model, predict, dashboard, auth, datasets, admin
+from app.api.routers import model, predict, dashboard, auth, datasets, admin, data_quality
 from app.db.database import engine, Base
 from app.models.dataset import Dataset
 
@@ -84,12 +84,34 @@ app.add_exception_handler(APIError, api_error_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
 
+# Root route to provide a friendly response on GET / instead of 404 Not Found
+@app.get("/", tags=["Root"])
+async def root():
+    return {
+        "name": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "status": "healthy",
+        "docs": "/docs",
+        "api_prefix": "/api/v1"
+    }
+
+# Primary API v1 Routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(datasets.router, prefix="/api/v1/datasets", tags=["Datasets"])
-app.include_router(model.router)
-app.include_router(predict.router, prefix="/api/v1/predict")
-app.include_router(dashboard.router)
+app.include_router(predict.router, prefix="/api/v1/predict", tags=["Forecasting & Predictions"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(model.router, prefix="/api/v1", tags=["Model Management"])
+app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard & Recommendations"])
+app.include_router(data_quality.router, prefix="/api/v1/quality", tags=["Data Quality & Cleaning"])
+
+# Secondary aliases to safeguard against requests omitting the /api/v1 prefix
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"], include_in_schema=False)
+app.include_router(datasets.router, prefix="/datasets", tags=["Datasets"], include_in_schema=False)
+app.include_router(predict.router, prefix="/predict", tags=["Forecasting & Predictions"], include_in_schema=False)
+app.include_router(admin.router, prefix="/admin", tags=["Admin"], include_in_schema=False)
+app.include_router(model.router, prefix="/api", include_in_schema=False)
+app.include_router(dashboard.router, prefix="/api", include_in_schema=False)
+app.include_router(data_quality.router, prefix="/quality", include_in_schema=False)
 
 # Initialize Prometheus Instrumentator
 Instrumentator().instrument(app).expose(app)
@@ -100,6 +122,7 @@ app.state.limiter = limiter
 from fastapi import Request
 
 @app.get("/health", tags=["Health"])
+@app.get("/api/v1/health", tags=["Health"], include_in_schema=False)
 @limiter.limit("5/minute")
 async def health_check(request: Request):
     return {"status": "healthy", "environment": settings.ENVIRONMENT}

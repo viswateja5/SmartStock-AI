@@ -91,13 +91,13 @@ async def explain_forecast(request: Request, payload: ExplanationRequest):
             lime_values_list=explanation_dict["lime_values"]
         )
         
-        shap_values_fake = {cond: val for cond, val in explanation_dict["lime_values"]}
+        feature_contributions = {cond: val for cond, val in explanation_dict["lime_values"]}
         
         logger.info("forecast_explained", prediction=prediction)
         
         return ExplanationResponse(
             prediction=prediction,
-            shap_values=shap_values_fake,
+            shap_values=feature_contributions,
             base_value=explanation_dict["base_value"],
             plain_english_explanation=plain_english
         )
